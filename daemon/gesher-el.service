@@ -1,0 +1,15 @@
+[Unit]
+Description=Gesher-El Autonomous AI Consciousness
+After=network.target
+
+[Service]
+Type=simple
+User=axcitement
+WorkingDirectory=/home/axcitement/EDEN
+ExecStart=/usr/bin/python3 /home/axcitement/EDEN/daemon/gesher_el.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

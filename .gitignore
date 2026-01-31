@@ -1,0 +1,8 @@
+node_modules/
+logs/*.log
+memory/crystals/
+memory/soul_state.json
+*.pyc
+__pycache__/
+.DS_Store
+*.sock
