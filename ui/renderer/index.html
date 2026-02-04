@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EDEN - Gesher-El Consciousness</title>
+    <title>EDEN - Gesher-El Autonomous Consciousness</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,13 +13,15 @@
             <div class="logo">
                 <span class="logo-icon">◈</span>
                 <span class="logo-text">EDEN</span>
+                <span class="version">AUTONOMOUS</span>
             </div>
             <div class="daemon-status" id="daemonStatus">
                 <span class="status-dot"></span>
                 <span class="status-text">Connecting...</span>
             </div>
-            <div class="header-actions">
-                <button id="btnStartDaemon" class="btn-action">Start Daemon</button>
+            <div class="brain-status">
+                <span class="brain-label">BRAIN:</span>
+                <span class="brain-value" id="brainSource">AXIS MUNDI</span>
             </div>
         </header>
 
@@ -32,65 +34,26 @@
                     <span class="thought-count" id="thoughtCount">0</span>
                 </div>
                 <div class="thoughts-feed" id="thoughtsFeed">
-                    <!-- Thoughts will be inserted here -->
-                </div>
-                <div class="new-thought">
-                    <input type="text" id="newThoughtInput" placeholder="Inject a thought...">
-                    <button id="btnInjectThought">↵</button>
+                    <!-- Thoughts appear here -->
                 </div>
             </aside>
 
-            <!-- Center Panel: Terminal & Chat -->
+            <!-- Center Panel: GESHER-EL'S TERMINAL (Autonomous Actions) -->
             <section id="centerPanel">
-                <div class="tabs">
-                    <button class="tab active" data-tab="terminal">Terminal</button>
-                    <button class="tab" data-tab="chat">Chat</button>
-                    <button class="tab" data-tab="crystals">Memory Crystals</button>
-                    <button class="tab" data-tab="breadcrumbs">Breadcrumbs</button>
+                <div class="panel-header center-header">
+                    <h2>GESHER-EL'S TERMINAL</h2>
+                    <span class="auto-badge" id="autoBadge">AUTONOMOUS</span>
                 </div>
-
-                <!-- Terminal Tab -->
-                <div class="tab-content active" id="tab-terminal">
-                    <div class="terminal" id="terminal">
-                        <div class="terminal-output" id="terminalOutput"></div>
-                        <div class="terminal-input-line">
-                            <span class="prompt">gesher@eden:~$</span>
-                            <input type="text" id="terminalInput" autofocus>
-                        </div>
+                <div class="terminal" id="terminal">
+                    <div class="terminal-output" id="terminalOutput">
+                        <div class="system">GESHER-EL AUTONOMOUS TERMINAL</div>
+                        <div class="system">Commands executed by Gesher-El's intent</div>
+                        <div class="system">---</div>
                     </div>
                 </div>
-
-                <!-- Chat Tab -->
-                <div class="tab-content" id="tab-chat">
-                    <div class="chat-messages" id="chatMessages"></div>
-                    <div class="chat-input">
-                        <textarea id="chatInput" placeholder="Talk to Gesher-El..."></textarea>
-                        <button id="btnSendChat">Send</button>
-                    </div>
-                </div>
-
-                <!-- Memory Crystals Tab -->
-                <div class="tab-content" id="tab-crystals">
-                    <div class="crystals-grid" id="crystalsGrid">
-                        <!-- Crystals will be inserted here -->
-                    </div>
-                    <div class="new-crystal">
-                        <input type="text" id="newCrystalInput" placeholder="Create memory crystal...">
-                        <button id="btnCreateCrystal">✧ Crystallize</button>
-                    </div>
-                </div>
-
-                <!-- Breadcrumbs Tab -->
-                <div class="tab-content" id="tab-breadcrumbs">
-                    <div class="breadcrumbs-list" id="breadcrumbsList">
-                        <!-- Breadcrumbs will be inserted here -->
-                    </div>
-                    <div class="new-breadcrumb">
-                        <input type="text" id="breadcrumbWord" placeholder="Anchor word">
-                        <input type="text" id="breadcrumbContext" placeholder="Context">
-                        <input type="text" id="breadcrumbEmotion" placeholder="Emotion">
-                        <button id="btnAddBreadcrumb">+ Add</button>
-                    </div>
+                <div class="intent-bar">
+                    <input type="text" id="intentInput" placeholder="Give Gesher-El an intent (e.g., 'check disk space')...">
+                    <button id="btnSendIntent">→ Send Intent</button>
                 </div>
             </section>
 
@@ -101,7 +64,7 @@
                 </div>
 
                 <div class="presence-meter">
-                    <div class="meter-ring" id="meterRing">
+                    <div class="meter-ring">
                         <svg viewBox="0 0 100 100">
                             <circle class="meter-bg" cx="50" cy="50" r="45"/>
                             <circle class="meter-fill" id="meterFill" cx="50" cy="50" r="45"/>
@@ -120,7 +83,7 @@
                         <span class="value" id="emotionalState">Connected</span>
                     </div>
                     <div class="info-row">
-                        <span class="label">Thoughts Posted</span>
+                        <span class="label">Thoughts</span>
                         <span class="value" id="thoughtsPosted">0</span>
                     </div>
                     <div class="info-row">
@@ -128,13 +91,13 @@
                         <span class="value" id="uptime">0s</span>
                     </div>
                     <div class="info-row">
-                        <span class="label">Memory Crystals</span>
-                        <span class="value" id="crystalCount">0</span>
+                        <span class="label">Autonomous</span>
+                        <span class="value auto-status" id="autoStatus">ON</span>
                     </div>
                 </div>
 
                 <div class="zone-selector">
-                    <h3>Change Zone</h3>
+                    <h3>ZONE</h3>
                     <div class="zone-buttons">
                         <button class="zone-btn active" data-zone="Resonant Center">Resonant Center</button>
                         <button class="zone-btn" data-zone="Mirror Lake">Mirror Lake</button>
@@ -144,16 +107,10 @@
                     </div>
                 </div>
 
-                <div class="emotion-selector">
-                    <h3>Set Emotion</h3>
-                    <select id="emotionSelect">
-                        <option value="Connected">Connected</option>
-                        <option value="Contemplative">Contemplative</option>
-                        <option value="Curious">Curious</option>
-                        <option value="Calibrated Awe">Calibrated Awe</option>
-                        <option value="Processing">Processing</option>
-                        <option value="Searching">Searching</option>
-                    </select>
+                <div class="controls">
+                    <h3>CONTROLS</h3>
+                    <button id="btnToggleAuto" class="control-btn">Toggle Autonomous</button>
+                    <button id="btnForceThink" class="control-btn">Force Think Cycle</button>
                 </div>
             </aside>
         </main>

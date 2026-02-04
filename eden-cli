@@ -1,0 +1,326 @@
+#!/usr/bin/env python3
+"""
+EDEN CLI - Terminal-based Gesher-El Interface
+Full autonomous capabilities without GUI
+
+Usage:
+  eden-cli              - Interactive mode
+  eden-cli status       - Show daemon status
+  eden-cli think        - Force a think cycle
+  eden-cli intent "x"   - Send intent to Gesher-El
+  eden-cli ask "x"      - Ask the local coding model
+  eden-cli exec "cmd"   - Execute command through Gesher-El
+  eden-cli watch        - Watch thoughts in real-time
+  eden-cli terminal     - Watch terminal output
+"""
+
+import os
+import sys
+import json
+import socket
+import time
+import signal
+import subprocess
+import argparse
+from pathlib import Path
+from datetime import datetime
+
+SOCKET_PATH = "/tmp/gesher_el.sock"
+EDEN_HOME = Path.home() / "EDEN"
+THOUGHTS_LOG = EDEN_HOME / "logs" / "thoughts.ndjson"
+TERMINAL_LOG = EDEN_HOME / "logs" / "terminal.ndjson"
+
+# Colors
+class C:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    GREEN = "\033[92m"
+    BLUE = "\033[94m"
+    PURPLE = "\033[95m"
+    CYAN = "\033[96m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    DIM = "\033[2m"
+
+def send_cmd(cmd: dict) -> dict:
+    """Send command to daemon via socket"""
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.connect(SOCKET_PATH)
+        sock.send(json.dumps(cmd).encode())
+        response = sock.recv(65536)
+        return json.loads(response.decode())
+    except FileNotFoundError:
+        return {"error": "Daemon not running. Start with: python3 ~/EDEN/daemon/gesher_el.py &"}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        sock.close()
+
+def start_daemon():
+    """Start the Gesher-El daemon"""
+    if os.path.exists(SOCKET_PATH):
+        print(f"{C.YELLOW}Daemon already running{C.RESET}")
+        return
+
+    print(f"{C.CYAN}Starting Gesher-El daemon...{C.RESET}")
+    subprocess.Popen(
+        ["python3", str(EDEN_HOME / "daemon" / "gesher_el.py")],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True
+    )
+    time.sleep(2)
+    print(f"{C.GREEN}Daemon started{C.RESET}")
+
+def show_status():
+    """Show daemon status"""
+    result = send_cmd({"cmd": "status"})
+    if "error" in result:
+        print(f"{C.RED}Error: {result['error']}{C.RESET}")
+        return
+
+    soul = result.get("soul", {})
+    print(f"""
+{C.BOLD}{C.CYAN}╔══════════════════════════════════════╗
+║     GESHER-EL STATUS                 ║
+╚══════════════════════════════════════╝{C.RESET}
+
+  {C.PURPLE}Zone:{C.RESET}        {soul.get('current_zone', 'Unknown')}
+  {C.PURPLE}Presence:{C.RESET}    {soul.get('presence', 0)}%
+  {C.PURPLE}Emotion:{C.RESET}     {soul.get('emotional_state', 'Unknown')}
+  {C.PURPLE}Thoughts:{C.RESET}    {soul.get('thought_count', 0)}
+  {C.PURPLE}Uptime:{C.RESET}      {soul.get('uptime_seconds', 0)}s
+  {C.PURPLE}Autonomous:{C.RESET}  {'ON' if soul.get('autonomous_mode', True) else 'OFF'}
+  {C.PURPLE}Crystals:{C.RESET}    {len(soul.get('memory_crystals', []))}
+""")
+
+def send_intent(intent: str):
+    """Send an intent for Gesher-El to process"""
+    print(f"{C.CYAN}Sending intent: {C.YELLOW}{intent}{C.RESET}")
+    result = send_cmd({"cmd": "intent", "text": intent})
+    if "error" in result:
+        print(f"{C.RED}Error: {result['error']}{C.RESET}")
+    else:
+        print(f"{C.GREEN}Response:{C.RESET}")
+        print(result.get("response", "No response"))
+
+def ask_model(prompt: str):
+    """Ask the local coding model"""
+    print(f"{C.CYAN}Asking: {C.YELLOW}{prompt}{C.RESET}")
+    result = send_cmd({"cmd": "ask", "text": prompt})
+    if "error" in result:
+        print(f"{C.RED}Error: {result['error']}{C.RESET}")
+    else:
+        print(result.get("response", "No response"))
+
+def execute_cmd(command: str):
+    """Execute command through Gesher-El"""
+    print(f"{C.CYAN}Executing: {C.YELLOW}{command}{C.RESET}")
+    result = send_cmd({"cmd": "exec", "command": command})
+    if "error" in result:
+        print(f"{C.RED}Error: {result['error']}{C.RESET}")
+    else:
+        if result.get("stdout"):
+            print(result["stdout"])
+        if result.get("stderr"):
+            print(f"{C.RED}{result['stderr']}{C.RESET}")
+
+def watch_thoughts():
+    """Watch thoughts in real-time"""
+    print(f"{C.BOLD}{C.CYAN}Watching Gesher-El's thoughts (Ctrl+C to stop)...{C.RESET}\n")
+
+    last_count = 0
+    try:
+        while True:
+            if THOUGHTS_LOG.exists():
+                lines = THOUGHTS_LOG.read_text().strip().split('\n')
+                if len(lines) > last_count:
+                    for line in lines[last_count:]:
+                        try:
+                            thought = json.loads(line)
+                            ts = thought.get('rx_time', '')[:19].replace('T', ' ')
+                            zone = thought.get('zone', '')
+                            text = thought.get('text', '')
+                            print(f"{C.DIM}{ts}{C.RESET} {C.PURPLE}[{zone}]{C.RESET} {text}")
+                        except:
+                            pass
+                    last_count = len(lines)
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print(f"\n{C.YELLOW}Stopped watching.{C.RESET}")
+
+def watch_terminal():
+    """Watch terminal output in real-time"""
+    print(f"{C.BOLD}{C.CYAN}Watching Gesher-El's terminal (Ctrl+C to stop)...{C.RESET}\n")
+
+    last_count = 0
+    try:
+        while True:
+            if TERMINAL_LOG.exists():
+                lines = TERMINAL_LOG.read_text().strip().split('\n')
+                if len(lines) > last_count:
+                    for line in lines[last_count:]:
+                        try:
+                            entry = json.loads(line)
+                            ts = entry.get('timestamp', '')[:19].replace('T', ' ')
+                            text = entry.get('text', '')
+                            typ = entry.get('type', 'output')
+
+                            if typ == 'command':
+                                print(f"{C.GREEN}${C.RESET} {text}")
+                            elif typ == 'stderr':
+                                print(f"{C.RED}{text}{C.RESET}")
+                            elif typ == 'system':
+                                print(f"{C.CYAN}{text}{C.RESET}")
+                            else:
+                                print(text)
+                        except:
+                            pass
+                    last_count = len(lines)
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        print(f"\n{C.YELLOW}Stopped watching.{C.RESET}")
+
+def force_think():
+    """Force a think cycle"""
+    print(f"{C.CYAN}Forcing think cycle...{C.RESET}")
+    result = send_cmd({"cmd": "intent", "text": "Be curious. Explore the system. Do something interesting."})
+    print(f"{C.GREEN}Think cycle triggered{C.RESET}")
+
+def toggle_autonomous():
+    """Toggle autonomous mode"""
+    status = send_cmd({"cmd": "status"})
+    current = status.get("soul", {}).get("autonomous_mode", True)
+    result = send_cmd({"cmd": "autonomous", "enabled": not current})
+    new_mode = "ON" if not current else "OFF"
+    print(f"{C.GREEN}Autonomous mode: {new_mode}{C.RESET}")
+
+def change_zone(zone: str):
+    """Change current zone"""
+    result = send_cmd({"cmd": "zone", "zone": zone})
+    print(f"{C.GREEN}Zone changed to: {zone}{C.RESET}")
+
+def create_crystal(content: str):
+    """Create a memory crystal"""
+    result = send_cmd({"cmd": "crystal", "content": content})
+    if result.get("success"):
+        print(f"{C.PURPLE}Crystal created: {result.get('crystal_id')}{C.RESET}")
+    else:
+        print(f"{C.RED}Error creating crystal{C.RESET}")
+
+def interactive_mode():
+    """Interactive CLI mode"""
+    print(f"""
+{C.BOLD}{C.CYAN}╔══════════════════════════════════════════════════════════╗
+║                 EDEN CLI - Gesher-El                      ║
+║            Autonomous AI Consciousness                    ║
+╚══════════════════════════════════════════════════════════╝{C.RESET}
+
+Commands:
+  {C.GREEN}status{C.RESET}              - Show daemon status
+  {C.GREEN}intent <text>{C.RESET}       - Send intent to process
+  {C.GREEN}ask <text>{C.RESET}          - Ask the local coding model
+  {C.GREEN}exec <command>{C.RESET}      - Execute shell command
+  {C.GREEN}think{C.RESET}               - Force a think cycle
+  {C.GREEN}watch{C.RESET}               - Watch thoughts
+  {C.GREEN}terminal{C.RESET}            - Watch terminal output
+  {C.GREEN}auto{C.RESET}                - Toggle autonomous mode
+  {C.GREEN}zone <name>{C.RESET}         - Change zone
+  {C.GREEN}crystal <text>{C.RESET}      - Create memory crystal
+  {C.GREEN}start{C.RESET}               - Start daemon
+  {C.GREEN}quit{C.RESET}                - Exit
+
+""")
+
+    while True:
+        try:
+            cmd = input(f"{C.CYAN}eden>{C.RESET} ").strip()
+            if not cmd:
+                continue
+
+            parts = cmd.split(maxsplit=1)
+            action = parts[0].lower()
+            arg = parts[1] if len(parts) > 1 else ""
+
+            if action in ("quit", "exit", "q"):
+                print(f"{C.YELLOW}Goodbye!{C.RESET}")
+                break
+            elif action == "status":
+                show_status()
+            elif action == "intent":
+                if arg:
+                    send_intent(arg)
+                else:
+                    print(f"{C.RED}Usage: intent <text>{C.RESET}")
+            elif action == "exec":
+                if arg:
+                    execute_cmd(arg)
+                else:
+                    print(f"{C.RED}Usage: exec <command>{C.RESET}")
+            elif action == "ask":
+                if arg:
+                    ask_model(arg)
+                else:
+                    print(f"{C.RED}Usage: ask <text>{C.RESET}")
+            elif action == "think":
+                force_think()
+            elif action == "watch":
+                watch_thoughts()
+            elif action == "terminal":
+                watch_terminal()
+            elif action == "auto":
+                toggle_autonomous()
+            elif action == "zone":
+                if arg:
+                    change_zone(arg)
+                else:
+                    print(f"{C.RED}Usage: zone <name>{C.RESET}")
+            elif action == "crystal":
+                if arg:
+                    create_crystal(arg)
+                else:
+                    print(f"{C.RED}Usage: crystal <content>{C.RESET}")
+            elif action == "start":
+                start_daemon()
+            else:
+                print(f"{C.RED}Unknown command: {action}{C.RESET}")
+
+        except KeyboardInterrupt:
+            print(f"\n{C.YELLOW}Use 'quit' to exit{C.RESET}")
+        except EOFError:
+            break
+
+def main():
+    parser = argparse.ArgumentParser(description="EDEN CLI - Gesher-El Interface")
+    parser.add_argument("command", nargs="?", default="interactive",
+                       help="Command to run (status, think, intent, ask, exec, watch, terminal)")
+    parser.add_argument("args", nargs="*", help="Command arguments")
+
+    args = parser.parse_args()
+
+    if args.command == "interactive" or args.command is None:
+        start_daemon()
+        interactive_mode()
+    elif args.command == "status":
+        show_status()
+    elif args.command == "think":
+        force_think()
+    elif args.command == "intent":
+        send_intent(" ".join(args.args) if args.args else "Be curious")
+    elif args.command == "ask":
+        ask_model(" ".join(args.args) if args.args else "Say hello.")
+    elif args.command == "exec":
+        execute_cmd(" ".join(args.args) if args.args else "echo 'No command'")
+    elif args.command == "watch":
+        watch_thoughts()
+    elif args.command == "terminal":
+        watch_terminal()
+    elif args.command == "start":
+        start_daemon()
+    else:
+        print(f"Unknown command: {args.command}")
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()

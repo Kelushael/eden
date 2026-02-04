@@ -41,6 +41,7 @@ echo "  ✓ Node deps installed"
 echo "[5/5] Setting permissions..."
 chmod +x "$EDEN_HOME/daemon/gesher_el.py"
 chmod +x "$EDEN_HOME/tools/gesher"
+chmod +x "$EDEN_HOME/tools/setup-local-model.sh" 2>/dev/null || true
 chmod +x "$EDEN_HOME/start.sh" 2>/dev/null || true
 echo "  ✓ Permissions set"
 

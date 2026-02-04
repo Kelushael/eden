@@ -6,3 +6,6 @@ memory/soul_state.json
 __pycache__/
 .DS_Store
 *.sock
+
+logs/*.ndjson
+memory/

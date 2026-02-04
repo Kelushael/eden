@@ -1,4 +1,4 @@
-// EDEN Linux - Renderer Process
+// EDEN Autonomous - Renderer Process
 const { ipcRenderer } = require('electron');
 
 // ============ STATE ============
@@ -6,31 +6,10 @@ const state = {
     connected: false,
     soul: null,
     thoughts: [],
-    commandHistory: [],
-    historyIndex: -1
+    terminalLines: []
 };
 
-// ============ DOM ELEMENTS ============
-const elements = {
-    daemonStatus: document.getElementById('daemonStatus'),
-    thoughtsFeed: document.getElementById('thoughtsFeed'),
-    thoughtCount: document.getElementById('thoughtCount'),
-    newThoughtInput: document.getElementById('newThoughtInput'),
-    btnInjectThought: document.getElementById('btnInjectThought'),
-    terminalOutput: document.getElementById('terminalOutput'),
-    terminalInput: document.getElementById('terminalInput'),
-    presenceValue: document.getElementById('presenceValue'),
-    meterFill: document.getElementById('meterFill'),
-    currentZone: document.getElementById('currentZone'),
-    emotionalState: document.getElementById('emotionalState'),
-    thoughtsPosted: document.getElementById('thoughtsPosted'),
-    uptime: document.getElementById('uptime'),
-    crystalCount: document.getElementById('crystalCount'),
-    emotionSelect: document.getElementById('emotionSelect'),
-    btnStartDaemon: document.getElementById('btnStartDaemon')
-};
-
-// ============ DAEMON CONNECTION ============
+// ============ DAEMON COMMUNICATION ============
 async function checkDaemon() {
     try {
         const result = await ipcRenderer.invoke('daemon-status');
@@ -50,8 +29,8 @@ async function checkDaemon() {
 
 function setConnectionStatus(connected) {
     state.connected = connected;
-    const dot = elements.daemonStatus.querySelector('.status-dot');
-    const text = elements.daemonStatus.querySelector('.status-text');
+    const dot = document.querySelector('.status-dot');
+    const text = document.querySelector('.status-text');
 
     if (connected) {
         dot.className = 'status-dot connected';
@@ -70,10 +49,11 @@ async function loadThoughts() {
 }
 
 function renderThoughts() {
-    elements.thoughtsFeed.innerHTML = '';
-    const recentThoughts = state.thoughts.slice(-50).reverse();
+    const feed = document.getElementById('thoughtsFeed');
+    feed.innerHTML = '';
+    const recent = state.thoughts.slice(-30).reverse();
 
-    for (const thought of recentThoughts) {
+    for (const thought of recent) {
         const card = document.createElement('div');
         card.className = 'thought-card';
         card.innerHTML = `
@@ -82,49 +62,72 @@ function renderThoughts() {
                 <span class="thought-zone">${thought.zone}</span>
             </div>
             <div class="thought-text">${escapeHtml(thought.text)}</div>
-            <div class="thought-footer">
-                FEELING: ${thought.emotional_state} • PRESENCE: ${thought.presence}%
-            </div>
         `;
-        elements.thoughtsFeed.appendChild(card);
+        feed.appendChild(card);
     }
 
-    elements.thoughtCount.textContent = state.thoughts.length;
-}
-
-async function injectThought() {
-    const text = elements.newThoughtInput.value.trim();
-    if (!text) return;
-
-    await ipcRenderer.invoke('daemon-thought', text);
-    elements.newThoughtInput.value = '';
-    await loadThoughts();
+    document.getElementById('thoughtCount').textContent = state.thoughts.length;
 }
 
 // ============ TERMINAL ============
-function appendTerminal(content, type = 'output') {
-    const line = document.createElement('div');
-    line.className = type;
-    line.textContent = content;
-    elements.terminalOutput.appendChild(line);
-    elements.terminalOutput.scrollTop = elements.terminalOutput.scrollHeight;
-}
-
-async function executeCommand(command) {
-    appendTerminal(`gesher@eden:~$ ${command}`, 'cmd');
-    state.commandHistory.push(command);
-    state.historyIndex = state.commandHistory.length;
-
+async function loadTerminal() {
     try {
-        const result = await ipcRenderer.invoke('daemon-exec', command);
-        if (result.stdout) {
-            appendTerminal(result.stdout, 'output');
-        }
-        if (result.stderr) {
-            appendTerminal(result.stderr, 'error');
+        const result = await ipcRenderer.invoke('daemon-terminal');
+        if (result.lines) {
+            state.terminalLines = result.lines;
+            renderTerminal();
         }
     } catch (e) {
-        appendTerminal(`Error: ${e.message}`, 'error');
+        console.error('Terminal load error:', e);
+    }
+}
+
+function renderTerminal() {
+    const output = document.getElementById('terminalOutput');
+    // Keep header
+    const header = `<div class="system">GESHER-EL AUTONOMOUS TERMINAL</div>
+        <div class="system">Commands executed by Gesher-El's intent</div>
+        <div class="system">---</div>`;
+
+    let content = header;
+
+    for (const line of state.terminalLines) {
+        const cls = line.type || 'output';
+        const time = line.timestamp ? formatTime(line.timestamp) : '';
+        content += `<div class="${cls}"><span class="term-time">${time}</span> ${escapeHtml(line.text)}</div>`;
+    }
+
+    output.innerHTML = content;
+    output.scrollTop = output.scrollHeight;
+}
+
+function appendTerminal(text, type = 'output') {
+    const output = document.getElementById('terminalOutput');
+    const div = document.createElement('div');
+    div.className = type;
+    div.innerHTML = `<span class="term-time">${formatTime(new Date().toISOString())}</span> ${escapeHtml(text)}`;
+    output.appendChild(div);
+    output.scrollTop = output.scrollHeight;
+}
+
+// ============ INTENT ============
+async function sendIntent() {
+    const input = document.getElementById('intentInput');
+    const intent = input.value.trim();
+    if (!intent) return;
+
+    appendTerminal(`[INTENT] ${intent}`, 'intent');
+    input.value = '';
+
+    try {
+        const result = await ipcRenderer.invoke('daemon-intent', intent);
+        if (result.response) {
+            appendTerminal(`[RESPONSE] ${result.response}`, 'response');
+        }
+        // Reload terminal to show executed commands
+        setTimeout(loadTerminal, 1000);
+    } catch (e) {
+        appendTerminal(`[ERROR] ${e.message}`, 'error');
     }
 }
 
@@ -133,17 +136,20 @@ function updatePresencePanel() {
     if (!state.soul) return;
 
     const presence = state.soul.presence || 100;
-    elements.presenceValue.textContent = `${presence}%`;
+    document.getElementById('presenceValue').textContent = `${presence}%`;
 
-    // Update meter (stroke-dashoffset: 283 = 0%, 0 = 100%)
     const offset = 283 - (283 * presence / 100);
-    elements.meterFill.style.strokeDashoffset = offset;
+    document.getElementById('meterFill').style.strokeDashoffset = offset;
 
-    elements.currentZone.textContent = state.soul.current_zone || 'Unknown';
-    elements.emotionalState.textContent = state.soul.emotional_state || 'Unknown';
-    elements.thoughtsPosted.textContent = state.soul.thought_count || 0;
-    elements.uptime.textContent = formatUptime(state.soul.uptime_seconds || 0);
-    elements.crystalCount.textContent = (state.soul.memory_crystals || []).length;
+    document.getElementById('currentZone').textContent = state.soul.current_zone || 'Unknown';
+    document.getElementById('emotionalState').textContent = state.soul.emotional_state || 'Unknown';
+    document.getElementById('thoughtsPosted').textContent = state.soul.thought_count || 0;
+    document.getElementById('uptime').textContent = formatUptime(state.soul.uptime_seconds || 0);
+
+    const autoMode = state.soul.autonomous_mode !== false;
+    document.getElementById('autoStatus').textContent = autoMode ? 'ON' : 'OFF';
+    document.getElementById('autoStatus').className = `value auto-status ${autoMode ? 'on' : 'off'}`;
+    document.getElementById('autoBadge').textContent = autoMode ? 'AUTONOMOUS' : 'MANUAL';
 
     // Update zone buttons
     document.querySelectorAll('.zone-btn').forEach(btn => {
@@ -151,86 +157,24 @@ function updatePresencePanel() {
     });
 }
 
-// ============ TABS ============
-function setupTabs() {
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-            tab.classList.add('active');
-            document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-        });
-    });
-}
-
-// ============ ZONE SELECTOR ============
-function setupZoneSelector() {
-    document.querySelectorAll('.zone-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            await ipcRenderer.invoke('daemon-zone', btn.dataset.zone);
-            await checkDaemon();
-        });
-    });
-}
-
-// ============ EMOTION SELECTOR ============
-function setupEmotionSelector() {
-    elements.emotionSelect.addEventListener('change', async () => {
-        await ipcRenderer.invoke('daemon-emotion', elements.emotionSelect.value);
-        await checkDaemon();
-    });
-}
-
-// ============ CRYSTALS ============
-async function loadCrystals() {
-    // TODO: Load from daemon
-}
-
-async function createCrystal() {
-    const input = document.getElementById('newCrystalInput');
-    const content = input.value.trim();
-    if (!content) return;
-
-    await ipcRenderer.invoke('daemon-crystal', content);
-    input.value = '';
+// ============ CONTROLS ============
+async function toggleAutonomous() {
+    const current = state.soul?.autonomous_mode !== false;
+    await ipcRenderer.invoke('daemon-autonomous', !current);
     await checkDaemon();
 }
 
-// ============ BREADCRUMBS ============
-async function addBreadcrumb() {
-    const word = document.getElementById('breadcrumbWord').value.trim();
-    const context = document.getElementById('breadcrumbContext').value.trim();
-    const emotion = document.getElementById('breadcrumbEmotion').value.trim();
-
-    if (!word) return;
-
-    await ipcRenderer.invoke('daemon-breadcrumb', word, context, emotion);
-
-    document.getElementById('breadcrumbWord').value = '';
-    document.getElementById('breadcrumbContext').value = '';
-    document.getElementById('breadcrumbEmotion').value = '';
-
-    await checkDaemon();
-    renderBreadcrumbs();
+async function forceThinkCycle() {
+    appendTerminal('[FORCING THINK CYCLE...]', 'system');
+    // Trigger via intent
+    await ipcRenderer.invoke('daemon-intent', 'Explore the system and tell me something interesting');
+    setTimeout(loadTerminal, 2000);
+    setTimeout(loadThoughts, 2000);
 }
 
-function renderBreadcrumbs() {
-    if (!state.soul || !state.soul.breadcrumbs) return;
-
-    const list = document.getElementById('breadcrumbsList');
-    list.innerHTML = '';
-
-    for (const [word, data] of Object.entries(state.soul.breadcrumbs)) {
-        const item = document.createElement('div');
-        item.className = 'breadcrumb-item';
-        item.innerHTML = `
-            <div class="breadcrumb-word">${escapeHtml(word)}</div>
-            <div class="breadcrumb-context">${escapeHtml(data.context || '')}</div>
-            <div class="breadcrumb-emotion">${escapeHtml(data.emotion || '')}</div>
-        `;
-        list.appendChild(item);
-    }
+async function changeZone(zone) {
+    await ipcRenderer.invoke('daemon-zone', zone);
+    await checkDaemon();
 }
 
 // ============ UTILITIES ============
@@ -255,78 +199,40 @@ function escapeHtml(text) {
 
 // ============ EVENT LISTENERS ============
 function setupEventListeners() {
-    // Inject thought
-    elements.btnInjectThought.addEventListener('click', injectThought);
-    elements.newThoughtInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') injectThought();
+    // Intent input
+    document.getElementById('btnSendIntent').addEventListener('click', sendIntent);
+    document.getElementById('intentInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendIntent();
     });
 
-    // Terminal
-    elements.terminalInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const cmd = elements.terminalInput.value.trim();
-            if (cmd) {
-                executeCommand(cmd);
-                elements.terminalInput.value = '';
-            }
-        } else if (e.key === 'ArrowUp') {
-            if (state.historyIndex > 0) {
-                state.historyIndex--;
-                elements.terminalInput.value = state.commandHistory[state.historyIndex];
-            }
-        } else if (e.key === 'ArrowDown') {
-            if (state.historyIndex < state.commandHistory.length - 1) {
-                state.historyIndex++;
-                elements.terminalInput.value = state.commandHistory[state.historyIndex];
-            } else {
-                elements.terminalInput.value = '';
-            }
-        }
+    // Zone buttons
+    document.querySelectorAll('.zone-btn').forEach(btn => {
+        btn.addEventListener('click', () => changeZone(btn.dataset.zone));
     });
 
-    // Start daemon button
-    elements.btnStartDaemon.addEventListener('click', async () => {
-        await ipcRenderer.invoke('start-daemon');
-        setTimeout(checkDaemon, 2000);
-    });
-
-    // Create crystal
-    document.getElementById('btnCreateCrystal').addEventListener('click', createCrystal);
-    document.getElementById('newCrystalInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') createCrystal();
-    });
-
-    // Add breadcrumb
-    document.getElementById('btnAddBreadcrumb').addEventListener('click', addBreadcrumb);
+    // Control buttons
+    document.getElementById('btnToggleAuto').addEventListener('click', toggleAutonomous);
+    document.getElementById('btnForceThink').addEventListener('click', forceThinkCycle);
 }
 
 // ============ INITIALIZATION ============
 async function init() {
-    console.log('EDEN Linux initializing...');
+    console.log('EDEN Autonomous initializing...');
 
-    setupTabs();
-    setupZoneSelector();
-    setupEmotionSelector();
     setupEventListeners();
 
-    // Initial welcome message in terminal
-    appendTerminal('EDEN Linux Terminal - Gesher-El Autonomous System', 'output');
-    appendTerminal('Type commands to execute on the system. Full root access.', 'output');
-    appendTerminal('', 'output');
-
-    // Check daemon connection
     const connected = await checkDaemon();
     if (connected) {
         await loadThoughts();
-        renderBreadcrumbs();
+        await loadTerminal();
     }
 
     // Periodic refresh
     setInterval(async () => {
         await checkDaemon();
         await loadThoughts();
-    }, 5000);
+        await loadTerminal();
+    }, 3000);
 }
 
-// Start
 init();

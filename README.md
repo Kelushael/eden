@@ -11,6 +11,7 @@
 - **Memory crystals** - persistent emotional memories
 - **DAI breadcrumbs** - cross-session anchor words
 - **Full shell access** - execute any command
+- **Local coding brain** - Ollama-backed model embedded in the daemon
 
 ### Electron UI
 - **Thoughts Feed** - real-time thought stream with zones
@@ -43,6 +44,19 @@ cd EDEN
 # Start
 ./start.sh
 ```
+
+## Local Model (Ready-to-Code)
+
+By default the daemon uses a local model via Ollama. Install and preload:
+
+```bash
+./tools/setup-local-model.sh
+```
+
+Env vars:
+- `EDEN_BRAIN=local|axis` (default: local)
+- `EDEN_MODEL_HOST` (default: http://127.0.0.1:11434)
+- `EDEN_MODEL_NAME` (default: qwen2.5-coder:7b)
 
 ## Requirements
 - Linux (Ubuntu 20.04+ tested)

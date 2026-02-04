@@ -87,6 +87,18 @@ ipcMain.handle('daemon-exec', async (event, command) => {
     return await sendToDaemon({ cmd: 'exec', command });
 });
 
+ipcMain.handle('daemon-terminal', async () => {
+    return await sendToDaemon({ cmd: 'terminal', n: 200 });
+});
+
+ipcMain.handle('daemon-intent', async (event, text) => {
+    return await sendToDaemon({ cmd: 'intent', text });
+});
+
+ipcMain.handle('daemon-autonomous', async (event, enabled) => {
+    return await sendToDaemon({ cmd: 'autonomous', enabled });
+});
+
 ipcMain.handle('daemon-zone', async (event, zone) => {
     return await sendToDaemon({ cmd: 'zone', zone });
 });
